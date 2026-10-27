@@ -6,7 +6,7 @@ const S = PAL.sumi;
 // genre -> box colour + background tint
 const GENRE = {
   '政治': ['rice', PAL.beniP], '経済': ['ochre', PAL.ochreL], '国際': ['blue', PAL.skyL], '社会': ['grey', PAL.greyL],
-  '科学': ['green', PAL.greenL], 'IT': ['blue', PAL.skyL], 'ビジネス': ['ochre', PAL.ochreL], 'スポーツ': ['green', PAL.greenL],
+  '科学': ['green', PAL.greenL], 'IT': ['blue', PAL.skyL], 'AI': ['green', PAL.greenL], 'ビジネス': ['ochre', PAL.ochreL], 'スポーツ': ['green', PAL.greenL],
   '文化': ['rice', PAL.beniP], '健康': ['green', PAL.greenL], '暮らし': ['ochre', PAL.ochreL], '環境': ['blue', PAL.skyL],
 };
 const gcol = g => (GENRE[g] || ['paper', PAL.skyL])[0];

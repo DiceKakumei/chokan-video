@@ -16,7 +16,7 @@ def say(t):
     t = re.sub(r'(\d{3,4})年', lambda m: kan(int(m.group(1))) + '年', t)
     for k in sorted(READS, key=len, reverse=True): t = t.replace(k, READS[k])
     return t
-MOOD = {'政治': 'think', '経済': 'think', '国際': 'sea', '社会': 'tense', '科学': 'calm', 'IT': 'calm', 'ビジネス': 'think', 'スポーツ': 'march', '文化': 'calm', '健康': 'calm', '暮らし': 'calm', '環境': 'sea'}
+MOOD = {'政治': 'think', '経済': 'think', '国際': 'sea', '社会': 'tense', '科学': 'calm', 'IT': 'calm', 'AI': 'calm', 'ビジネス': 'think', 'スポーツ': 'march', '文化': 'calm', '健康': 'calm', '暮らし': 'calm', '環境': 'sea'}
 lines, sheets, n, seen = [], [], 0, set()
 for s in issue['sheets']:
     ids = []
