@@ -28,7 +28,7 @@ for s in issue['sheets']:
         lines.append(o)
     g = s.get('genre'); first = bool(g) and g not in seen and s['kind'] not in ('cover', 'outro', 'digest')
     if first: seen.add(g)
-    sheets.append({'id': s['id'], 'view': s['id'], 'cart': g if first else None, 'print': first or s['kind'] == 'cover', 'mood': s.get('mood') or MOOD.get(g, 'calm'), 'lines': ids, 'rev': 0})
+    sheets.append({'id': s['id'], 'view': s['id'], 'cart': g if first else None, 'print': first or s['kind'] == 'cover', 'mood': s.get('mood') or MOOD.get(g, 'calm'), 'lines': ids, 'rev': s.get('rev', 0)})
 (HERE / 'lines.json').write_text(json.dumps(lines, ensure_ascii=False, indent=1), encoding='utf-8')
 (HERE / 'sheets.json').write_text(json.dumps({'sheets': sheets, 'final': {'seal': '朝'}, 'engine': 1, 'audio': 1}, ensure_ascii=False, indent=1), encoding='utf-8')
 print(len(sheets), 'sheets', len(lines), 'lines', sum(len(l['text']) for l in lines), 'chars')
