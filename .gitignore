@@ -1,0 +1,14 @@
+stills/
+out/
+clips/
+build.log
+still.log
+events.json
+release*/
+fonts/
+fonts.css
+lines.json
+sheets.json
+story.json
+clips.json
+voices/dur.json

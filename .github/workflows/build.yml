@@ -1,0 +1,63 @@
+# 朝刊: render the daily news film on GitHub Actions (not on the local PC).
+# One clip (video + audio) per screen change; clips are cached, so only the changed ones are rendered again.
+name: build-video
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Force these sheets to be rendered again (comma separated sheet ids, e.g. ch5_tier,ch5_fence). Empty = only clips whose content changed."
+        required: false
+        default: ""
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: ffmpeg + Japanese fonts
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg fonts-noto-cjk
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Restore the clip cache
+        uses: actions/cache/restore@v4
+        with:
+          path: clips
+          key: clips-${{ github.run_id }}
+          restore-keys: |
+            clips-
+      - name: Lemo-Opuscar library (pinned commit)
+        run: |
+          git init "$HOME/lemo-opuscar" && cd "$HOME/lemo-opuscar"
+          git remote add origin https://github.com/lemomo-ai/lemo-opuscar.git
+          git fetch --depth 1 origin 413a6bd6d78ebd3bdd5abaec9538a26867f890df
+          git checkout FETCH_HEAD
+          npm ci --no-audit --no-fund || npm i --no-audit --no-fund
+          node node_modules/playwright-core/cli.js install --with-deps chromium-headless-shell
+          pip install numpy scipy soundfile soxr pillow edge-tts numba
+      - name: Build
+        timeout-minutes: 240
+        env:
+          LIB: /home/runner/lemo-opuscar
+          PY: python
+          WORKERS: "4"
+          PYTHONUTF8: "1"
+          ONLY: ${{ inputs.only }}
+        run: sh build.sh
+      - name: Save the clip cache (also when a later step fails, so the finished clips are kept)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: clips
+          key: clips-${{ github.run_id }}
+      - name: Attach to a Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="chokan-$(python -c "import json;print(json.load(open('issue.json',encoding='utf-8'))['date'])")-r${{ github.run_number }}"
+          gh release create "$TAG" chokan.mp4 chokan.srt --title "朝刊 $TAG" --notes "build $TAG (clips rendered this run: see the Build log)"
