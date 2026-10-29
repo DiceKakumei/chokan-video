@@ -1,14 +1,16 @@
-import re, sys, urllib.request, urllib.parse, pathlib
-H = pathlib.Path(sys.argv[1])
-txt = ''
-for f in ['main.js','newsviews.js','diagram.js','issue.json','lines.json','sheets.json']:
-    txt += (H / f).read_text(encoding='utf-8')
-chars = sorted(set(c for c in txt if ord(c) > 127) | set('0123456789。、') | set('朝刊第号出典以上今朝ほかの主なニュースキーワード'))
+"""Download only the characters this film uses from Google Fonts (split into unicode-range chunks) -> fonts/ + fonts.css.
+   python make_fonts.py <project dir>      Fonts to use: fonts.json = [{"gf": "Zen+Maru+Gothic", "weight": 500, "css": "Main"}, ...]  (css = the font-family name used in theme.js)
+Run script.py first (lines.json / sheets.json), and run this again when you add new characters."""
+import re, sys, json, urllib.request, urllib.parse, pathlib
+H = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else '.')
+txt = ''.join(f.read_text(encoding='utf-8') for f in H.glob('*.js')) + ''.join((H / f).read_text(encoding='utf-8') for f in ['issue.json', 'lines.json', 'sheets.json'] if (H / f).exists())
+ALL = chars = sorted(set(c for c in txt if ord(c) > 127) | set('0123456789。、.,:;!?()%+-=/×÷→←↑↓·') | set(chr(i) for i in range(33, 127)))   # engraving: also all printable ASCII (Latin lettering in Bodoni / Pinyon Script)
 print(len(chars), 'chars')
 UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'}
 (H / 'fonts').mkdir(exist_ok=True)
 CH = 220; css = ''
-for fam, w, name, fam_css in [('Shippori+Mincho', 500, 'shippori-500', 'Shippori'), ('Shippori+Mincho', 700, 'shippori-700', 'Shippori'), ('Yuji+Syuku', 400, 'yuji-400', 'Yuji')]:
+for f in json.load(open(H / 'fonts.json', encoding='utf-8')):
+    fam, w, fam_css = f['gf'], f['weight'], f['css']; chars = [c for c in ALL if ord(c) < 128 or c == '·'] if f.get('latin') else ALL; name = f"{fam.lower().replace('+', '-')}-{w}"
     for ci in range(0, len(chars), CH):
         part = ''.join(chars[ci:ci + CH])
         u = f'https://fonts.googleapis.com/css2?family={fam}:wght@{w}&text=' + urllib.parse.quote(part)

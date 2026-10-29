@@ -1,0 +1,3 @@
+[{"gf": "Noto+Sans+JP", "weight": 900, "css": "Main"}, {"gf": "Noto+Sans+JP", "weight": 700, "css": "Main"},
+ {"gf": "Barlow+Condensed", "weight": 800, "css": "Cond", "latin": true}, {"gf": "Barlow+Condensed", "weight": 600, "css": "Cond", "latin": true},
+ {"gf": "IBM+Plex+Mono", "weight": 500, "css": "Mono", "latin": true}]

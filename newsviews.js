@@ -1,16 +1,9 @@
-// News sheets: every sheet of the morning-paper film is built from plain data (issue.json), no hand-drawn picture per day.
-// Kinds: cover | story | number | flow | compare | digest | outro.  Items appear at fractions f (0..1) of the sheet length; keep notes above y=850 (subtitles cover ~915+).
-import { PAL } from './print.js';
+// News-package sheets built from plain data (issue.json): no hand-drawn picture per day.
+// Kinds: cover | story | number | flow | compare | digest | outro.  The lower-third strap (theme.js frame()) carries the narration, so the picture area is y 56..830.
+// Items appear on the words: TL.f(sheetId, k) = the fraction of the sheet at which narration line k starts.
+import { clamp, lerp, seg, ss, eio, eo, back } from '/core/lib.js';
 import { diagramView } from './diagram.js';
-const S = PAL.sumi;
-// genre -> box colour + background tint
-const GENRE = {
-  '政治': ['rice', PAL.beniP], '経済': ['ochre', PAL.ochreL], '国際': ['blue', PAL.skyL], '社会': ['grey', PAL.greyL],
-  '科学': ['green', PAL.greenL], 'IT': ['blue', PAL.skyL], 'AI': ['green', PAL.greenL], 'ビジネス': ['ochre', PAL.ochreL], 'スポーツ': ['green', PAL.greenL],
-  '文化': ['rice', PAL.beniP], '健康': ['green', PAL.greenL], '暮らし': ['ochre', PAL.ochreL], '環境': ['blue', PAL.skyL],
-};
-const gcol = g => (GENRE[g] || ['paper', PAL.skyL])[0];
-const gtint = g => (GENRE[g] || ['paper', PAL.skyL])[1];
+import { P, F, FC, FM, W, H, TL, plate, ring, shake, glint, stamp, telop, eyebrow, ticker } from './package.js';
 
 // wrap Japanese text to lines of at most n chars, breaking after 、。 or spaces when possible
 export function wrap(str, n, maxLines = 99) {
@@ -18,104 +11,116 @@ export function wrap(str, n, maxLines = 99) {
   while (s.length > n && out.length < maxLines - 1) {
     let cut = -1;
     for (let i = n; i >= Math.floor(n * .55); i--) { if ('、。，．！？ '.includes(s[i - 1])) { cut = i; break; } }
-    if (cut < 0) cut = n;
+    if (cut < 0) { cut = n; while (cut > 3 && /[0-9.%,]/.test(s[cut - 1]) && /[0-9.%,]/.test(s[cut])) cut--; }   // do not split inside a number
     out.push(s.slice(0, cut).trim()); s = s.slice(cut).trim();
   }
   if (s) out.push(s);
   if (out.length > maxLines) out.length = maxLines;
   return out;
 }
-const T = (f, x, y, str, o = {}) => ({ k: 'text', f, d: .5, x, y, str, ...o });
-const head = (title, f = 0, size = 60, n = 20) => {
-  const L = wrap(title, n, 2), items = [];
-  L.forEach((ln, i) => items.push(T(f + i * .02, 130, 118 + i * size * 1.28, ln, { align: 'left', size })));
-  const w = Math.max(...L.map(l => l.length)) * size;
-  items.push({ k: 'pen', f: f + .05, d: .6, x0: 128, x1: 128 + Math.min(w, 1500), y: 118 + (L.length - 1) * size * 1.28 + size * .66, col: PAL.beni, w: 9 });
-  return { items, bottom: 118 + (L.length - 1) * size * 1.28 + size * .66 };
-};
-const tag = (g, f = 0, op = false) => op ? null : ({ k: 'box', f, d: .4, x: 1700, y: 120, w: 300, h: 80, str: g, fill: gcol(g), size: 40, dbl: false });
-const src = (s, f = .8) => s ? T(f, 1840, 836, '出典　' + s, { align: 'right', size: 28, weight: 500, col: PAL.greyD }) : null;
+const SPJ = await (await fetch('sheets.json')).json();
+const NL = Object.fromEntries(SPJ.sheets.map(x => [x.id, x.lines.length]));
+const at = (id, k, off = 0) => Math.min(.85, Math.max(0, TL.f(id, Math.min(k, 9), off)));
+const FILLS = ['a', 'ink', 'b', 'ink', 'c'];
+const lineLen = sh => NL[sh.id] || (sh.lines || []).length;
+const nth = (sh, i, n, off = 0) => at(sh.id, Math.floor(i * lineLen(sh) / Math.max(1, n)), off);   // item i of n lands on its share of the narration
+const T = (f, x, y, str, o = {}) => ({ k: 'text', f, d: .4, x, y, str, ...o });
 
 function story(sh) {
-  const g = sh.genre, h = head(sh.title, 0, 58, 22), pts = (sh.points || []).slice(0, 3), items = [...h.items, tag(g, .02, sh.opener)];
-  const y0 = h.bottom + 120, step = Math.min(150, (810 - y0) / Math.max(1, pts.length));
+  const id = sh.id, pts = (sh.points || []).slice(0, 3), items = [];
+  const y0 = sh.opener ? 320 : 130, n = Math.max(1, pts.length), step = (810 - y0) / n;
   pts.forEach((p, i) => {
-    const f = .16 + i * .17, y = y0 + i * step + step / 2 - 30, L = wrap(p, 21, 2);
-    items.push({ k: 'box', f, d: .4, x: 130, y, w: 1080, h: Math.max(110, step - 24), str: '', fill: i % 2 ? 'paper' : 'white', anchor: 'l' });
-    L.forEach((ln, j) => items.push(T(f + .03, 170, y + (j - (L.length - 1) / 2) * 46, ln, { align: 'left', size: 38, weight: 500 })));
+    const L = wrap(p, 22, 3), y = y0 + i * step, f = nth(sh, i, n, -.15);
+    items.push({ k: 'box', f, d: .4, anchor: 'l', x: 96, y: y + step / 2 - 10, w: 1080, h: step - 28, str: L.join('\n'), fill: i === 0 ? 'a' : 'ink', size: 42 });
   });
   if (sh.key) {
-    const kl = wrap(sh.key, 6, 2);
-    items.push({ k: 'box', f: .5, d: .5, x: 1560, y: 500, w: 520, h: 380, str: '', fill: gcol(g) });
-    kl.forEach((ln, j) => items.push(T(.55, 1560, 450 + (j - (kl.length - 1) / 2) * 120, ln, { size: kl.length > 1 ? 92 : 112, col: PAL.beni })));
-    if (sh.keysub) items.push(T(.62, 1560, 640, sh.keysub, { size: 34, weight: 500 }));
+    const kl = wrap(sh.key, 6, 2), f = at(id, 0, .6);
+    items.push({ k: 'fn', f, fn(x, t, p) { stamp(x, 1450, 520, kl[0], sh.keysub || '', p, { size: kl.length > 1 ? 84 : 112, rot: -6 }); } });
   }
-  items.push(src(sh.source));
-  return diagramView(sh.id, { items: items.filter(Boolean), tint: gtint(g), cart: sh.cart ? undefined : null });
+  return diagramView(id, { items });
 }
 
 function number(sh) {
-  const g = sh.genre, h = head(sh.title, 0, 56, 22), items = [...h.items, tag(g, .02, sh.opener)];
-  items.push(T(.16, 640, 470, sh.num, { size: sh.num.length > 6 ? 150 : 210, col: PAL.beni }));
-  items.push(T(.22, 640, 640, sh.unit || '', { size: 56 }));
-  if (sh.label) items.push(T(.28, 640, 730, sh.label, { size: 40, weight: 500, col: PAL.greyD }));
+  const id = sh.id, items = [], f0 = at(id, 0, .2);
+  items.push({ k: 'fn', f: f0, fn(x, t, p) { x.save(); x.globalAlpha = p; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillStyle = P.lem; x.font = FC(sh.num.length > 6 ? 170 : 250, 800); x.fillText(sh.num, 96, sh.opener ? 520 : 400); x.fillStyle = P.paper; x.font = F(64, 900); x.fillText(sh.unit || '', 100, sh.opener ? 690 : 570); x.font = F(40, 700); x.fillStyle = P.gold; x.fillText(sh.label || '', 100, sh.opener ? 770 : 660); x.restore(); } });
   const bars = (sh.bars || []).slice(0, 4), mx = Math.max(1, ...bars.map(b => b.v));
-  bars.forEach((b, i) => items.push({ k: 'bar', f: .34 + i * .12, d: .6, x: 1230, y: 330 + i * 130, w: 380, h: 70, frac: b.v / mx, label: b.label, num: b.text || String(b.v), col: i === 0 ? 'red' : 'blue', size: 36 }));
-  items.push(src(sh.source));
-  return diagramView(sh.id, { items: items.filter(Boolean), tint: gtint(g) });
+  bars.forEach((b, i) => items.push({ k: 'bar', f: nth(sh, i, Math.max(1, bars.length), .0), d: .6, x: 1130, y: 300 + i * 120, w: 480, h: 66, frac: b.v / mx, label: b.label, num: b.text || String(b.v), col: i === 0 ? 'a' : 'b', size: 36 }));
+  return diagramView(id, { items });
 }
 
 function flow(sh) {
-  const g = sh.genre, h = head(sh.title, 0, 56, 22), items = [...h.items, tag(g, .02, sh.opener)], st = (sh.steps || []).slice(0, 4), n = st.length || 1;
-  const bw = n >= 4 ? 400 : 480, gap = (1700 - n * bw) / (n + 1), y = 500;
+  const id = sh.id, st = (sh.steps || []).slice(0, 4), n = st.length || 1, items = [];
+  const bw = n >= 4 ? 380 : 470, gap = (1728 - n * bw) / (n + 1), y = 470, h = 360, dark = { a: P.ink, b: P.ink, ink: P.paper, c: P.ink };
   st.forEach((s, i) => {
-    const x = 130 + gap * (i + 1) + bw * i + bw / 2, f = .12 + i * .2;
-    items.push({ k: 'box', f, d: .45, x, y, w: bw, h: 320, str: s.t + '\n' + wrap(s.s || '', n >= 4 ? 9 : 11, 4).join('\n'), fill: ['rice', 'blue', 'green', 'ochre'][i % 4], size: 50, sub: 34 });
-    if (i < n - 1) items.push({ k: 'arrow', f: f + .1, d: .35, from: [x + bw / 2 + 12, y], to: [x + bw / 2 + gap - 12, y], col: PAL.beni, w: 11 });
+    const x = 96 + gap * (i + 1) + bw * i + bw / 2, f = nth(sh, i, n, -.15), fill = FILLS[i % FILLS.length], tc = dark[fill], L = wrap(s.s || '', n >= 4 ? 10 : 12, 4);
+    items.push({ k: 'box', f, d: .45, x, y, w: bw, h, str: '', fill });
+    items.push({ k: 'text', f: f + .02, d: .4, x, y: y - h / 2 + 70, str: s.t || '', size: 52, col: tc });
+    L.forEach((ln, j) => items.push({ k: 'text', f: f + .04, d: .4, x, y: y - 30 + j * 50, str: ln, size: 32, weight: 700, col: tc }));
+    if (i < n - 1) items.push({ k: 'arrow', f: f + .06, d: .35, from: [x + bw / 2 + 8, y], to: [x + bw / 2 + gap - 8, y], col: 'a', w: 10 });
   });
-  items.push(src(sh.source));
-  return diagramView(sh.id, { items: items.filter(Boolean), tint: gtint(g) });
+  return diagramView(id, { items });
 }
 
 function compare(sh) {
-  const g = sh.genre, h = head(sh.title, 0, 56, 22), items = [...h.items, tag(g, .02, sh.opener)], side = (o, x, f, fill) => {
-    items.push({ k: 'box', f, d: .45, x, y: 420, w: 640, h: 120, str: o.t, fill, size: 56 });
-    (o.pts || []).slice(0, 3).forEach((p, i) => { const L = wrap(p, 17, 2); items.push({ k: 'box', f: f + .1 + i * .08, d: .4, x, y: 565 + i * 100 + 30, w: 640, h: 90, str: '', fill: 'white', dbl: false });
-      L.forEach((ln, j) => items.push(T(f + .13 + i * .08, x, 565 + i * 100 + 30 + (j - (L.length - 1) / 2) * 36, ln, { size: 32, weight: 500 }))); });
+  const id = sh.id, items = [], y0 = sh.opener ? 360 : 200;
+  const side = (o, x, f, fill) => {
+    items.push({ k: 'box', f, d: .45, x, y: y0 + 55, w: 700, h: 110, str: o.t || '', fill, size: 56 });
+    (o.pts || []).slice(0, 3).forEach((p, i) => items.push({ k: 'box', f: f + .05 + i * .04, d: .4, x, y: y0 + 200 + i * 130, w: 700, h: 112, str: wrap(p, 20, 2).join('\n'), fill: 'ink', size: 34 }));
   };
-  side(sh.left || {}, 520, .14, 'blue'); side(sh.right || {}, 1400, .34, 'rice');
-  items.push(T(.28, 960, 420, 'VS', { size: 70, col: PAL.beni }));
-  items.push(src(sh.source));
-  return diagramView(sh.id, { items: items.filter(Boolean), tint: gtint(g) });
+  side(sh.left || {}, 500, nth(sh, 0, 2, -.15), 'a'); side(sh.right || {}, 1330, nth(sh, 1, 2, -.15), 'b');
+  items.push({ k: 'fn', f: at(id, 0, .4), fn(x, t, p) { x.save(); x.globalAlpha = p; x.fillStyle = P.paper; x.font = FC(76, 800); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('VS', 915, y0 + 55); x.restore(); } });
+  return diagramView(id, { items });
 }
 
-function digest(sh) {   // quick hits: one line per story, genre chip + headline
-  const rows = (sh.rows || []).slice(0, 6), items = [...head(sh.title || 'ほかの主なニュース', 0, 58, 22).items];
-  rows.forEach((r, i) => {
-    const y = 270 + i * 110, f = .1 + i * .13, L = wrap(r.t, 28, 1);
-    items.push({ k: 'box', f, d: .4, x: 270, y, w: 220, h: 84, str: r.g, fill: gcol(r.g), size: 36, dbl: false });
-    items.push(T(f + .02, 420, y, L[0], { align: 'left', size: 46, weight: 500 }));
+function digest(sh) {
+  const id = sh.id, rows = (sh.rows || []).slice(0, 6), items = [];
+    rows.forEach((r, i) => {
+    const y = 160 + i * 110, f = nth(sh, i, rows.length, -.1);
+    items.push({ k: 'box', f, d: .35, anchor: 'l', x: 96, y, w: 200, h: 84, str: r.g, fill: i % 2 ? 'b' : 'a', size: 34 });
+    items.push({ k: 'box', f: f + .02, d: .35, anchor: 'l', x: 310, y, w: 1400, h: 84, str: wrap(r.t, 32, 1)[0], fill: 'ink', size: 38 });
   });
-  return diagramView(sh.id, { items, tint: PAL.skyL });
+  return diagramView(id, { items });
 }
 
+// cover: sting (plate slam -> bug) + dateline block + rundown of the top stories (adapted from the template's "open" scene)
 function cover(sh) {
-  const items = [T(0, 960, 250, '朝刊', { size: 250, col: S }),
-    { k: 'pen', f: .05, d: .7, x0: 520, x1: 1400, y: 380, col: PAL.beni, w: 14 },
-    T(.1, 960, 450, sh.date, { size: 54, weight: 500 }), T(.12, 960, 520, sh.no ? `第${sh.no}号` : '', { size: 40, weight: 500, col: PAL.greyD })];
-  (sh.tops || []).slice(0, 3).forEach((t, i) => {
-    const x = 360 + i * 600, f = .25 + i * .18, L = wrap(t, 11, 4);
-    items.push({ k: 'box', f, d: .45, x, y: 690, w: 540, h: 250, str: '', fill: ['rice', 'blue', 'ochre'][i], size: 40 });
-    L.forEach((ln, j) => items.push(T(f + .04, x, 690 + (j - (L.length - 1) / 2) * 46, ln, { size: 38 })));
-  });
-  return diagramView(sh.id, { items, tint: PAL.skyL, tint2: PAL.beniP });
+  const tops = (sh.tops || []).slice(0, 3), ROW_T = [2.1, 2.5, 2.9], dm = /(\d{4})年(\d{1,2})月(\d{1,2})日（?(.?)/.exec(sh.date || '') || [];
+  const MON = ['', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+  return {
+    id: sh.id,
+    paint(x, lt) {
+      if (lt < 1.5) {
+        for (const k of [.04, .10]) { const p = seg(lt, k, k + .16), a = 1 - seg(lt, .28, .5); if (p <= 0 || a <= 0) continue; const e = lerp(-500, W + 500, eo(p)); x.save(); x.globalAlpha = a; x.fillStyle = k < .05 ? P.lem : P.gold; x.beginPath(); x.moveTo(e - 140, 0); x.lineTo(e, 0); x.lineTo(e - 240, H); x.lineTo(e - 380, H); x.closePath(); x.fill(); x.restore(); }
+        const slam = seg(lt, .16, .42), u = ss(seg(lt, 1.12, 1.45));
+        if (slam > 0) { const [sx, sy] = shake(lt - .42, 12, .3), s0 = lerp(3.2, 1.5, eo(slam)), s = lerp(s0, .327, u), cx = lerp(960, 1739, u) + sx * (1 - u), cy = lerp(470, 86, u) + sy * (1 - u);
+          plate(x, cx, cy, s, { letters: seg(lt, .42, .82), sub: 'MORNING EDITION', subP: seg(lt, .5, .85) * (1 - u), glint: seg(lt, .85, 1.1), a: clamp(slam * 4) }); ring(x, 960, 470, 100, 700, seg(lt, .42, .9), P.lem, 8); }
+      }
+      const d = eo(seg(lt, 1.3, 2.1));
+      if (d > 0) {
+        x.save(); x.globalAlpha = d; x.translate(-(1 - d) * 60, 0); x.fillStyle = P.ink2; x.fillRect(96, 200, 380, 560); x.fillStyle = P.lem; x.fillRect(96, 200, 380, 10);
+        x.fillStyle = P.paper; x.font = FC(250, 800); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(dm[3] || '', 286, 400);
+        x.fillStyle = P.lem; x.font = FC(60, 800); x.letterSpacing = '6px'; x.fillText(MON[+dm[2]] || '', 286, 540); x.letterSpacing = '0px';
+        x.fillStyle = P.gold; x.font = FM(22, 500); x.letterSpacing = '4px'; x.fillText((dm[1] || '') + ' · ' + (sh.no ? 'NO.' + sh.no : ''), 286, 600); x.letterSpacing = '0px';
+        x.fillStyle = P.paper; x.font = F(44, 900); x.fillText((dm[4] || '') + '曜日', 286, 680); x.restore();
+      }
+      tops.forEach((t, k) => {
+        const t0 = ROW_T[k], p = back(seg(lt, t0, t0 + .42), 1.6); if (p <= 0) return;
+        const y = 210 + k * 190, h = 160, hh = Math.max(.02, p), L = wrap(t, 24, 2);
+        x.save(); x.translate(0, y + h / 2); x.scale(1, hh); x.translate(0, -(y + h / 2)); x.globalAlpha = clamp(p * 2);
+        x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(522, y + 8, 1260, h); x.fillStyle = P.ink2; x.fillRect(516, y, 1260, h); x.fillStyle = P.lem; x.fillRect(516, y, 130, h);
+        x.fillStyle = P.ink; x.font = FC(96, 800); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('0' + (k + 1), 581, y + h / 2 + 4);
+        x.fillStyle = P.paper; x.font = F(44, 900); x.textAlign = 'left'; L.forEach((ln, j) => x.fillText(ln, 690, y + h / 2 + (j - (L.length - 1) / 2) * 54));
+        glint(x, 516, y, 1260, h, seg(lt, t0 + .35, t0 + .9)); x.restore();
+      });
+    },
+    ev: len => [{ t: .16, type: 'hit' }, { t: 1.12, type: 'glock', n: 6 }, ...ROW_T.map((t, k) => ({ t, type: 'glock', n: k }))],
+  };
 }
 
 function outro(sh) {
-  const items = [T(0, 960, 330, sh.title || '以上、今朝の朝刊', { size: 96 }),
-    { k: 'pen', f: .1, d: .6, x0: 560, x1: 1360, y: 410, col: PAL.beni, w: 12 }];
-  wrap(sh.note || '', 24, 3).forEach((ln, i) => items.push(T(.25 + i * .1, 960, 540 + i * 70, ln, { size: 48, weight: 500 })));
-  return diagramView(sh.id, { items, tint: PAL.skyL, tint2: PAL.ochreL });
+  const items = [T(0.05, 960, 330, sh.title || '以上、今朝の朝刊', { size: 100, col: 'paper' }), { k: 'pen', f: 0.15, d: .6, x0: 560, x1: 1360, y: 420, col: 'a', w: 12 }];
+  wrap(sh.note || '', 24, 3).forEach((ln, i) => items.push(T(.3 + i * .1, 960, 540 + i * 70, ln, { size: 48, weight: 700, col: 'lem' })));
+  return diagramView(sh.id, { items });
 }
 
 const KIND = { cover, story, number, flow, compare, digest, outro };

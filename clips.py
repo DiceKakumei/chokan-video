@@ -10,7 +10,7 @@ sheets = ST['sheets']; spec = {s['id']: s for s in SP['sheets']}; N = len(sheets
 def sig(i):
     if i < 0 or i >= N: return None
     s = sheets[i]; sp = spec[s['id']]
-    return {'view': s['view'], 'cart': s['cart'], 'print': s['print'], 'mood': s['mood'], 'rev': sp.get('rev', 0), 'len': round(s['t1'] - s['t0'], 3),
+    return {'view': s['view'], 'cart': s['cart'], 'chapter': s['chapter'], 'mood': s['mood'], 'rev': sp.get('rev', 0), 'len': round(s['t1'] - s['t0'], 3),
             'lines': [[LN[k]['text'], LN[k].get('say'), round(DUR[k], 3), round(ST['vo'][k] - s['t0'], 3)] for k in sp['lines']]}
 def key(*parts): return hashlib.sha1(json.dumps(parts, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:10]
 clips = []; start = 0.0

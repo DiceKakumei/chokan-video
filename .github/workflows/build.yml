@@ -1,4 +1,4 @@
-# 朝刊: render the daily news film on GitHub Actions (not on the local PC).
+# render the film on GitHub Actions (not on the local PC).
 # One clip (video + audio) per screen change; clips are cached, so only the changed ones are rendered again.
 name: build-video
 on:
@@ -48,6 +48,7 @@ jobs:
           WORKERS: "4"
           PYTHONUTF8: "1"
           ONLY: ${{ inputs.only }}
+          FILM: chokan
         run: sh build.sh
       - name: Save the clip cache (also when a later step fails, so the finished clips are kept)
         if: always()
