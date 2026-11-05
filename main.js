@@ -54,9 +54,16 @@ function subtitle(t) {
   ctx.font = T.SUBFONT || '500 42px sans-serif'; const maxW = T.SUBMAX ?? 1480;
   let lines = [s.text];
   if (ctx.measureText(s.text).width > maxW) {                 // two lines, split at a punctuation mark near the middle
-    const mid = s.text.length / 2; let best = -1, bd = 1e9;
-    [...s.text].forEach((ch, k) => { if ('、。，．,. '.includes(ch) && k < s.text.length - 1 && Math.abs(k - mid) < bd) { bd = Math.abs(k - mid); best = k; } });
-    const cut = best >= 0 ? best + 1 : Math.ceil(mid); lines = [s.text.slice(0, cut), s.text.slice(cut)];
+    // line-breaking rules (kinsoku): no closing bracket / punctuation / small kana at a line start, no opening bracket at a line end; numbers, Latin words and number+unit stay whole
+    const tx = s.text, mid = tx.length / 2, NS = '、。，．,.！？!?）)」』】］〕〉》：；:;・ー～〜…‥％%々ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮ', OP = '（(「『【［〔〈《', CL = '）)」』】］〕〉》', AN = /[0-9０-９A-Za-z.,%％]/, HI = /[ぁ-ん]/;
+    let best = -1, bs = -1e9;
+    for (let k = 1; k < tx.length; k++) {                     // k = first char of line 2
+      const a = tx[k - 1], b = tx[k];
+      if (NS.includes(b) || OP.includes(a) || '〜～'.includes(a) || (AN.test(a) && AN.test(b)) || (/[0-9０-９]/.test(a) && !(b === ' ' || OP.includes(b)))) continue;
+      const sc = ('、。，．,. '.includes(a) ? 1000 : OP.includes(b) || CL.includes(a) ? 8 : HI.test(a) && !HI.test(b) ? 4 : HI.test(b) && !HI.test(a) ? -4 : 0) - Math.abs(k - mid);
+      if (sc > bs) { bs = sc; best = k; }
+    }
+    const cut = best > 0 ? best : Math.ceil(mid); lines = [tx.slice(0, cut), tx.slice(cut)];
   }
   T.subtitle(ctx, lines, a, fo, s);
   ctx.restore();

@@ -5,13 +5,39 @@ import { clamp, lerp, seg, ss, eio, eo, back } from '/core/lib.js';
 import { diagramView } from './diagram.js';
 import { P, F, FC, FM, W, H, TL, plate, ring, shake, glint, stamp, telop, eyebrow, ticker } from './package.js';
 
-// wrap Japanese text to lines of at most n chars, breaking after 、。 or spaces when possible
+// wrap Japanese text to lines of at most n chars, with line-breaking rules (kinsoku):
+//  - a line never starts with a closing bracket, punctuation or small kana, and never ends with an opening bracket
+//  - a number, a Latin word and number+unit (54議席, 1110円) are never split
+//  - a bracketed group that fits on one line stays whole: the break goes before "(" -> "…54議席 / (改選前47)", never "…(改選前47 / )"
+//  - 1-2 chars are never left alone on the last line
+const NO_START = '、。，．,.！？!?）)」』】］〕〉》：；:;・ー～〜…‥％%々ゝゞぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮ';
+const OPEN = '（(「『【［〔〈《', CLOSE = '）)」』】］〕〉》', NO_END = OPEN + '〜～';
+const AN = /[0-9０-９A-Za-z.,%％]/, DIG = /[0-9０-９]/, HIRA = /[ぁ-ん]/, KATA = /[ァ-ヶー]/, KANJI = /[一-龠々]/;
+export function breakScore(s, i, n) {            // score of a break between s[i-1] and s[i]; -Infinity = not allowed
+  const a = s[i - 1], b = s[i];
+  if (NO_START.includes(b) || NO_END.includes(a) || (AN.test(a) && AN.test(b)) || (DIG.test(a) && !(b === ' ' || OPEN.includes(b)))) return -Infinity;
+  let sc = (i - n) * 3, depth = 0, open = -1;    // fuller lines first: each char short of n costs 3
+  for (let k = 0; k < i; k++) { if (OPEN.includes(s[k])) { if (!depth) open = k; depth++; } else if (CLOSE.includes(s[k]) && depth) depth--; }
+  if (depth) { let d = depth, e = i; while (e < s.length && d) { if (OPEN.includes(s[e])) d++; else if (CLOSE.includes(s[e])) d--; e++; } if (e - open <= n) sc -= 60; }   // inside a group that fits on a line
+  if ((i >= n * .35 && (a === ' ' || b === ' ')) || (i >= n * .5 && '、。，．！？'.includes(a))) sc += 30;   // a space is a separator the writer put there
+  else if (i >= n * .4 && OPEN.includes(b)) sc += 28;
+  else if (i >= n * .5 && CLOSE.includes(a)) sc += 20;
+  else if (HIRA.test(a) && !HIRA.test(b)) sc += 10;                        // after a particle: 民主党が / 上下両院を
+  else if (HIRA.test(b) && !HIRA.test(a) && a !== ' ') sc -= 12;           // before a particle or okurigana: 両院 / を, 調 / べる
+  else if (KANJI.test(a) && KANJI.test(b)) sc -= 4;                        // probably inside a compound: 過半 / 数
+  if (DIG.test(b) && a !== ' ') sc -= 6;                                   // 約 / 45％
+  if (KATA.test(a) && KATA.test(b)) sc -= 10;                              // inside a katakana word
+  const rest = s.length - i;
+  if (rest < 3) sc -= 40;                                                  // 1-2 chars alone
+  else if (rest < n * .4) sc -= (n * .4 - rest) * 5;                       // a very short last line: 重要な / 要因」
+  return sc;
+}
 export function wrap(str, n, maxLines = 99) {
   const out = []; let s = String(str || '').replace(/\s+/g, ' ').trim();
   while (s.length > n && out.length < maxLines - 1) {
-    let cut = -1;
-    for (let i = n; i >= Math.floor(n * .55); i--) { if ('、。，．！？ '.includes(s[i - 1])) { cut = i; break; } }
-    if (cut < 0) { cut = n; while (cut > 3 && /[0-9.%,]/.test(s[cut - 1]) && /[0-9.%,]/.test(s[cut])) cut--; }   // do not split inside a number
+    let cut = -1, best = -Infinity;
+    for (let i = Math.min(n, s.length - 1), lo = Math.max(2, Math.ceil(n * .3)); i >= lo; i--) { const sc = breakScore(s, i, n); if (sc > best) { best = sc; cut = i; } }
+    if (cut < 0) cut = n;
     out.push(s.slice(0, cut).trim()); s = s.slice(cut).trim();
   }
   if (s) out.push(s);
