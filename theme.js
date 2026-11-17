@@ -7,7 +7,7 @@ import { P, F, FC, FM, ST, cueAt, buildGround, ground, plate, strap, telop, tick
 
 export const W = 1920, H = 1080;
 export const FONTS = ['900 40px Main', '700 40px Main', '800 40px Cond', '600 40px Cond', '500 40px Mono'];
-export const CHARS = 'NEWS LINE SOURCE MORNING EDITION TOP NEWS THE END HEADLINES 見出し朝刊以上今朝';
+export const CHARS = 'NEWS LINE SOURCE MORNING NOON EVENING EDITION TOP NEWS THE END HEADLINES 見出し朝昼夕夜刊以上今朝今日';
 export const BACK = '#0a0b0d', GAP = 200, DIR = 1, PAN = .45, TITLE_T = 1.6, TITLE_D = .5;
 export const INK = P.paper;
 export const COL = { paper: P.ink, a: P.lem, b: P.gold, c: P.paper, d: P.dim, grey: P.ink3, white: P.ink2, dark: P.ink };
@@ -17,12 +17,14 @@ const N = ST.sheets.length;
 
 // per-sheet package layer: category tab, headline, source line
 const ISSUE = await (await fetch('issue.json')).json();
+// edition: issue.json may carry {edition:{name:'昼刊',en:'NOON EDITION',now:'今日'}}; default is the morning edition
+export const ED = Object.assign({ name: '朝刊', en: 'MORNING EDITION', now: '今朝' }, ISSUE.edition || {});
 const EN = { '政治': 'POLITICS', '経済': 'ECONOMY', '国際': 'WORLD', '社会': 'SOCIETY', '科学': 'SCIENCE', 'IT': 'TECH', 'AI': 'AI', 'ビジネス': 'BUSINESS', 'スポーツ': 'SPORTS', '文化': 'CULTURE', '健康': 'HEALTH', '暮らし': 'LIFE', '環境': 'CLIMATE' };
 export const META = {};
 for (const sh of ISSUE.sheets) META[sh.id] = {
   tab: sh.kind === 'cover' ? 'TOP NEWS' : sh.kind === 'outro' ? 'THE END' : sh.kind === 'digest' ? '見出し HEADLINES' : (sh.genre || '') + ' ' + (EN[sh.genre] || 'NEWS'),
-  head: sh.kind === 'cover' ? '朝刊 ' + (ISSUE.date || '') : sh.kind === 'outro' ? '以上、今朝の朝刊' : (sh.title || ''),
-  src: sh.source ? 'SOURCE: ' + sh.source : 'MORNING EDITION · ' + (ISSUE.date || ''),
+  head: sh.kind === 'cover' ? ED.name + ' ' + (ISSUE.date || '') : sh.kind === 'outro' ? '以上、' + ED.now + 'の' + ED.name : (sh.title || ''),
+  src: sh.source ? 'SOURCE: ' + sh.source : ED.en + ' · ' + (ISSUE.date || ''),
 };
 
 export function build() { buildGround(); }
@@ -67,14 +69,14 @@ export function endcard(ctx, p, text, t) {
   ctx.save(); ctx.globalAlpha = 1; ground(ctx, t, .5);
   const a = (d, len = .5) => clamp((t - d) / len);
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-  ctx.globalAlpha = a(.1); ctx.font = FM(22, 500); ctx.letterSpacing = '4px'; ctx.fillStyle = P.gold; ctx.fillText('NEWS LINE · MORNING EDITION', 140, 300); ctx.letterSpacing = '0px';
+  ctx.globalAlpha = a(.1); ctx.font = FM(22, 500); ctx.letterSpacing = '4px'; ctx.fillStyle = P.gold; ctx.fillText('NEWS LINE · ' + ED.en, 140, 300); ctx.letterSpacing = '0px';
   ctx.globalAlpha = a(.25); ctx.font = F(96, 900); ctx.fillStyle = P.paper; ctx.fillText(text, 140, 410 + (1 - eo(a(.25))) * 30);
   ctx.globalAlpha = a(.5); ctx.font = `italic 600 54px Cond, sans-serif`; ctx.fillStyle = P.lem; ctx.fillText('Morning Edition', 144, 506);
   ctx.globalAlpha = a(.7); ctx.fillStyle = P.gold; ctx.fillRect(140, 566, 520 * eo(a(.7, .6)), 3);
   ctx.globalAlpha = a(1.0); ctx.font = F(30, 700); ctx.fillStyle = P.paper; ctx.fillText('ニュース番組パッケージ  BROADCAST NEWS PACKAGE', 140, 630);
   ctx.font = FM(18, 500); ctx.fillStyle = 'rgba(244,241,232,.72)'; ctx.letterSpacing = '1px';
   ['SOURCES: news agencies and newspapers named on each screen / summaries in our own words', 'FONTS: Noto Sans JP, Barlow Condensed, IBM Plex Mono (SIL OFL)  /  PICTURE, MUSIC, SOUND: made in code', 'VOICE: Microsoft Edge neural TTS (ja-JP-KeitaNeural)'].forEach((l, k) => ctx.fillText(l, 140, 720 + k * 34));
-  ctx.letterSpacing = '0px'; ctx.globalAlpha = a(.15); const pp = eo(a(.2, .7)); plate(ctx, lerp(2000, 1560, pp), 880, 1.1, { sub: 'MORNING EDITION', subP: a(.9, .5), glint: ((t * .4) % 3) < 1 ? (t * .4) % 3 : 0 });
+  ctx.letterSpacing = '0px'; ctx.globalAlpha = a(.15); const pp = eo(a(.2, .7)); plate(ctx, lerp(2000, 1560, pp), 880, 1.1, { sub: ED.en, subP: a(.9, .5), glint: ((t * .4) % 3) < 1 ? (t * .4) % 3 : 0 });
   ctx.restore();
 }
 

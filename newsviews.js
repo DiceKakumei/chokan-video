@@ -3,6 +3,7 @@
 // Items appear on the words: TL.f(sheetId, k) = the fraction of the sheet at which narration line k starts.
 import { clamp, lerp, seg, ss, eio, eo, back } from '/core/lib.js';
 import { diagramView } from './diagram.js';
+import { ED } from './theme.js';
 import { P, F, FC, FM, W, H, TL, plate, ring, shake, glint, stamp, telop, eyebrow, ticker } from './package.js';
 
 // wrap Japanese text to lines of at most n chars, with line-breaking rules (kinsoku):
@@ -119,7 +120,7 @@ function cover(sh) {
         for (const k of [.04, .10]) { const p = seg(lt, k, k + .16), a = 1 - seg(lt, .28, .5); if (p <= 0 || a <= 0) continue; const e = lerp(-500, W + 500, eo(p)); x.save(); x.globalAlpha = a; x.fillStyle = k < .05 ? P.lem : P.gold; x.beginPath(); x.moveTo(e - 140, 0); x.lineTo(e, 0); x.lineTo(e - 240, H); x.lineTo(e - 380, H); x.closePath(); x.fill(); x.restore(); }
         const slam = seg(lt, .16, .42), u = ss(seg(lt, 1.12, 1.45));
         if (slam > 0) { const [sx, sy] = shake(lt - .42, 12, .3), s0 = lerp(3.2, 1.5, eo(slam)), s = lerp(s0, .327, u), cx = lerp(960, 1739, u) + sx * (1 - u), cy = lerp(470, 86, u) + sy * (1 - u);
-          plate(x, cx, cy, s, { letters: seg(lt, .42, .82), sub: 'MORNING EDITION', subP: seg(lt, .5, .85) * (1 - u), glint: seg(lt, .85, 1.1), a: clamp(slam * 4) }); ring(x, 960, 470, 100, 700, seg(lt, .42, .9), P.lem, 8); }
+          plate(x, cx, cy, s, { letters: seg(lt, .42, .82), sub: ED.en, subP: seg(lt, .5, .85) * (1 - u), glint: seg(lt, .85, 1.1), a: clamp(slam * 4) }); ring(x, 960, 470, 100, 700, seg(lt, .42, .9), P.lem, 8); }
       }
       const d = eo(seg(lt, 1.3, 2.1));
       if (d > 0) {
@@ -144,7 +145,7 @@ function cover(sh) {
 }
 
 function outro(sh) {
-  const items = [T(0.05, 960, 330, sh.title || '以上、今朝の朝刊', { size: 100, col: 'paper' }), { k: 'pen', f: 0.15, d: .6, x0: 560, x1: 1360, y: 420, col: 'a', w: 12 }];
+  const items = [T(0.05, 960, 330, sh.title || ('以上、' + ED.now + 'の' + ED.name), { size: 100, col: 'paper' }), { k: 'pen', f: 0.15, d: .6, x0: 560, x1: 1360, y: 420, col: 'a', w: 12 }];
   wrap(sh.note || '', 24, 3).forEach((ln, i) => items.push(T(.3 + i * .1, 960, 540 + i * 70, ln, { size: 48, weight: 700, col: 'lem' })));
   return diagramView(sh.id, { items });
 }
